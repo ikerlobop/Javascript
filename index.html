@@ -48,36 +48,72 @@
         <pre><code>import snap7
 from snap7.util import *
 from snap7.type import Areas
+import time
 
-client = snap7.client.Client()
-client.connect("192.168.0.100", 0, 1)
-
-if client.get_connected():
-    print("✅ Conectado al PLC.")
-
+def leer_datos_db1(client):
     data = client.read_area(Areas.DB, 1, 0, 14)
 
     entero1 = get_int(data, 0)    # Static_1
-    real2   = get_real(data, 8)   # Static_4
-    bool1   = get_bool(data, 12, 0)  # Static_5
+    entero2 = get_int(data, 2)    # Static_2
+    real1 = get_real(data, 4)     # Static_3
+    real2 = get_real(data, 8)     # Static_4
+    bool1 = get_bool(data, 12, 0) # Static_5
+    bool2 = get_bool(data, 12, 1) # Static_6
 
-    print(f"Static_1: {entero1}")
-    print(f"Static_4: {real2}")
-    print(f"Static_5: {bool1}")
+    print("\n📊 Valores actuales en DB1:")
+    print(f"Static_1 (Int): {entero1}")
+    print(f"Static_2 (Int): {entero2}")
+    print(f"Static_3 (Real): {real1}")
+    print(f"Static_4 (Real): {real2}")
+    print(f"Static_5 (Bool): {bool1}")
+    print(f"Static_6 (Bool): {bool2}")
+    return data
 
-    nuevo_entero1 = int(input("Nuevo valor para Static_1: "))
-    nuevo_real2   = float(input("Nuevo valor para Static_4: "))
-    nuevo_bool1   = input("Nuevo valor para Static_5 (0 o 1): ") == '1'
+def main():
+    client = snap7.client.Client()
+    client.connect("192.168.2.44", 0, 1)
 
-    set_int(data, 0, nuevo_entero1)
-    set_real(data, 8, nuevo_real2)
-    set_bool(data, 12, 0, nuevo_bool1)
+    if client.get_connected():
+        print("✅ Conectado al PLC.")
 
-    client.write_area(Areas.DB, 1, 0, data)
-    print("📝 Valores escritos correctamente.")
-    client.disconnect()
-else:
-    print("❌ No se pudo conectar al PLC.")
+        try:
+            while True:
+                # Leer y mostrar valores actuales
+                data = leer_datos_db1(client)
+
+                # Solicitar nuevos valores
+                nuevo_entero1 = int(input("\nIntroduce nuevo valor para Static_1 (Int): "))
+                nuevo_real2 = float(input("Introduce nuevo valor para Static_4 (Real): "))
+                nuevo_bool1 = input("Introduce nuevo valor para Static_5 (Bool, 0 o 1): ") == '1'
+
+                # Modificar los datos en la copia local
+                set_int(data, 0, nuevo_entero1)
+                set_real(data, 8, nuevo_real2)
+                set_bool(data, 12, 0, nuevo_bool1)
+
+                # Escribir al PLC
+                client.write_area(Areas.DB, 1, 0, data)
+                print("\n📝 Datos escritos correctamente.")
+
+                # Leer y mostrar los nuevos valores
+                leer_datos_db1(client)
+
+                # Esperar o continuar
+                continuar = input("\n¿Deseas modificar de nuevo? (s/n): ").lower()
+                if continuar != 's':
+                    break
+
+        except Exception as e:
+            print(f"❌ Error: {e}")
+        finally:
+            client.disconnect()
+            print("🔌 Desconectado del PLC.")
+    else:
+        print("❌ No se pudo conectar al PLC.")
+
+if __name__ == "__main__":
+    main()
+
         </code></pre>
     </div>
 
