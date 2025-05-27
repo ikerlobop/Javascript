@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ejemplo de Cliente Modbus TCP en Python</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #005b96;
+        }
+        code {
+            background-color: #eaeaea;
+            padding: 10px;
+            display: block;
+            border-radius: 6px;
+            white-space: pre;
+            overflow-x: auto;
+            font-family: Consolas, monospace;
+        }
+        .explicacion {
+            margin-top: 20px;
+        }
+        .bloque {
+            background: #ffffff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Ejemplo: Cliente Modbus TCP con Python</h1>
+
+    <div class="bloque">
+        <code>
+from pymodbus.client.tcp import ModbusTcpClient
+
+# Crear cliente
+client = ModbusTcpClient("192.168.2.221", port=502)
+
+# Conectar
+client.connect()
+
+# Leer holding registers
+response = client.read_holding_registers(address=0, count=12, slave=1)
+
+# Verificar si la respuesta es válida
+if response and not response.isError():
+    print(f"Holding registers: {response.registers}")
+else:
+    print("Error al leer los holding registers")
+
+# Cerrar conexión
+client.close()
+        </code>
+    </div>
+
+    <div class="explicacion">
+        <h2>Explicación del código</h2>
+        <ul>
+            <li><strong>ModbusTcpClient</strong>: Se importa del módulo <code>pymodbus</code> para crear un cliente TCP.</li>
+            <li><strong>client.connect()</strong>: Establece conexión con el servidor Modbus.</li>
+            <li><strong>read_holding_registers(...)</strong>: Solicita leer 12 registros a partir de la dirección 0 del esclavo con ID 1.</li>
+            <li><strong>response.isError()</strong>: Verifica si ocurrió un error en la lectura.</li>
+            <li><strong>print(...)</strong>: Muestra los registros leídos si la respuesta fue exitosa.</li>
+            <li><strong>client.close()</strong>: Cierra la conexión Modbus.</li>
+        </ul>
+    </div>
+
+</body
+</html>
