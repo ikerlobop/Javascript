@@ -48,71 +48,130 @@
         <pre><code>import snap7
 from snap7.util import *
 from snap7.type import Areas
-import time
+import tkinter as tk
+from tkinter import ttk
 
-def leer_datos_db1(client):
-    data = client.read_area(Areas.DB, 1, 0, 14)
+IP_PLC = "192.168.2.44"
+DB_NUM = 1
+DB_SIZE = 14
 
-    entero1 = get_int(data, 0)    # Static_1
-    entero2 = get_int(data, 2)    # Static_2
-    real1 = get_real(data, 4)     # Static_3
-    real2 = get_real(data, 8)     # Static_4
-    bool1 = get_bool(data, 12, 0) # Static_5
-    bool2 = get_bool(data, 12, 1) # Static_6
+class PLCApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Interfaz PLC - Snap7")
 
-    print("\n📊 Valores actuales en DB1:")
-    print(f"Static_1 (Int): {entero1}")
-    print(f"Static_2 (Int): {entero2}")
-    print(f"Static_3 (Real): {real1}")
-    print(f"Static_4 (Real): {real2}")
-    print(f"Static_5 (Bool): {bool1}")
-    print(f"Static_6 (Bool): {bool2}")
-    return data
-
-def main():
-    client = snap7.client.Client()
-    client.connect("192.168.2.44", 0, 1)
-
-    if client.get_connected():
-        print("✅ Conectado al PLC.")
-
+        self.client = snap7.client.Client()
         try:
-            while True:
-                # Leer y mostrar valores actuales
-                data = leer_datos_db1(client)
-
-                # Solicitar nuevos valores
-                nuevo_entero1 = int(input("\nIntroduce nuevo valor para Static_1 (Int): "))
-                nuevo_real2 = float(input("Introduce nuevo valor para Static_4 (Real): "))
-                nuevo_bool1 = input("Introduce nuevo valor para Static_5 (Bool, 0 o 1): ") == '1'
-
-                # Modificar los datos en la copia local
-                set_int(data, 0, nuevo_entero1)
-                set_real(data, 8, nuevo_real2)
-                set_bool(data, 12, 0, nuevo_bool1)
-
-                # Escribir al PLC
-                client.write_area(Areas.DB, 1, 0, data)
-                print("\n📝 Datos escritos correctamente.")
-
-                # Leer y mostrar los nuevos valores
-                leer_datos_db1(client)
-
-                # Esperar o continuar
-                continuar = input("\n¿Deseas modificar de nuevo? (s/n): ").lower()
-                if continuar != 's':
-                    break
-
+            self.client.connect(IP_PLC, 0, 1)
+            if self.client.get_connected():
+                print("✅ Conectado al PLC")
         except Exception as e:
-            print(f"❌ Error: {e}")
-        finally:
-            client.disconnect()
-            print("🔌 Desconectado del PLC.")
-    else:
-        print("❌ No se pudo conectar al PLC.")
+            print(f"❌ No se pudo conectar: {e}")
+            return
+
+        self.data = bytearray(DB_SIZE)
+
+        # Static_1 (Int) - editable + lectura
+        ttk.Label(root, text="Static_1 (Int)").grid(row=0, column=0, sticky="e", padx=5, pady=5)
+        self.int_var = tk.StringVar()
+        ttk.Entry(root, textvariable=self.int_var, width=10).grid(row=0, column=1)
+        self.int_actual = tk.StringVar(value="---")
+        ttk.Label(root, textvariable=self.int_actual).grid(row=0, column=2, padx=10)
+
+        # Static_4 (Real) - slider + lectura
+        ttk.Label(root, text="Static_4 (Real)").grid(row=1, column=0, sticky="e", padx=5, pady=5)
+        self.temp_slider = ttk.Scale(root, from_=0, to=100, orient="horizontal", length=200, command=self.actualizar_valor_slider)
+        self.temp_slider.grid(row=1, column=1)
+        self.temp_actual = tk.StringVar(value="---")
+        ttk.Label(root, textvariable=self.temp_actual).grid(row=1, column=2, padx=10)
+
+        # Static_5 (Bool) - botón + color + lectura
+        ttk.Label(root, text="Static_5 (Bool)").grid(row=2, column=0, sticky="e", padx=5, pady=5)
+        self.estado_label = tk.Label(root, text="OFF", bg="red", width=10)
+        self.estado_label.grid(row=2, column=1)
+        ttk.Button(root, text="Cambiar Estado", command=self.toggle_estado).grid(row=2, column=2)
+        self.bool_actual = tk.StringVar(value="---")
+        ttk.Label(root, textvariable=self.bool_actual).grid(row=2, column=3)
+
+        # Static_2, Static_3, Static_6 - solo lectura
+        self.read_labels = {}
+        for i, (name, row) in enumerate([
+            ("Static_2 (Int)", 3),
+            ("Static_3 (Real)", 4),
+            ("Static_6 (Bool)", 5)
+        ]):
+            ttk.Label(root, text=name).grid(row=row, column=0, sticky="e", padx=5, pady=5)
+            var = tk.StringVar(value="---")
+            ttk.Label(root, textvariable=var).grid(row=row, column=1)
+            self.read_labels[name] = var
+
+        # Botones
+        ttk.Button(root, text="Actualizar", command=self.actualizar_datos).grid(row=6, column=0, pady=10)
+        ttk.Button(root, text="Enviar al PLC", command=self.enviar_datos).grid(row=6, column=1)
+
+        self.estado_bool = False
+        self.actualizar_datos()
+
+    def leer_datos(self):
+        self.data = self.client.read_area(Areas.DB, DB_NUM, 0, DB_SIZE)
+        return self.data
+
+    def enviar_datos(self):
+        try:
+            set_int(self.data, 0, int(self.int_var.get()))
+            set_real(self.data, 8, self.temp_slider.get())
+            set_bool(self.data, 12, 0, self.estado_bool)
+            self.client.write_area(Areas.DB, DB_NUM, 0, self.data)
+            print("📝 Datos escritos correctamente.")
+        except Exception as e:
+            print(f"❌ Error al enviar: {e}")
+
+    def actualizar_datos(self):
+        try:
+            self.leer_datos()
+            valor_int = get_int(self.data, 0)
+            valor_real = get_real(self.data, 8)
+            valor_bool = get_bool(self.data, 12, 0)
+
+            self.int_var.set(str(valor_int))
+            self.int_actual.set(f"Actual: {valor_int}")
+
+            self.temp_slider.set(valor_real)
+            self.temp_actual.set(f"{valor_real:.2f} ºC")
+
+            self.estado_bool = valor_bool
+            self.bool_actual.set(f"{'ON' if valor_bool else 'OFF'}")
+            self.actualizar_color_estado()
+
+            self.read_labels["Static_2 (Int)"].set(str(get_int(self.data, 2)))
+            self.read_labels["Static_3 (Real)"].set(f"{get_real(self.data, 4):.2f}")
+            self.read_labels["Static_6 (Bool)"].set(str(get_bool(self.data, 12, 1)))
+        except Exception as e:
+            print(f"❌ Error al leer: {e}")
+
+    def toggle_estado(self):
+        self.estado_bool = not self.estado_bool
+        self.actualizar_color_estado()
+
+    def actualizar_color_estado(self):
+        color = "green" if self.estado_bool else "red"
+        text = "ON" if self.estado_bool else "OFF"
+        self.estado_label.config(text=text, bg=color)
+
+    def actualizar_valor_slider(self, value):
+        self.temp_actual.set(f"{float(value):.2f} ºC")
+
+    def cerrar(self):
+        self.client.disconnect()
+        print("🔌 Desconectado del PLC.")
+        self.root.destroy()
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    app = PLCApp(root)
+    root.protocol("WM_DELETE_WINDOW", app.cerrar)
+    root.mainloop()
+
 
         </code></pre>
     </div>
